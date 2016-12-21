@@ -4,7 +4,7 @@
 ```sh
 git clone jmonster/pegboard && cd pegboard
 yarn install
-mv .env.example .env
+cp .env.example .env
 # modify .env as appropriate
 yarn dev
 ```
