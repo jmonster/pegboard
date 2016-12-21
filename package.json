@@ -1,0 +1,44 @@
+{
+  "name": "pegboard",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "engines": {
+    "node": "6.9.2"
+  },
+  "scripts": {
+    "test": "snyk test && ./node_modules/.bin/lab --lint --coverage",
+    "test-without-snyk": "./node_modules/.bin/lab --lint --coverage",
+    "dev": "./bin/dev",
+    "start": "./bin/start",
+    "reset": "rm -rf ./node_modules && yarn install"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://___"
+  },
+  "author": "___",
+  "license": "___",
+  "dependencies": {
+    "boom": "4.2.0",
+    "chalk": "1.1.3",
+    "debug": "2.4.4",
+    "hapi": "16.0.1",
+    "hapi-require-https": "^2.0.10",
+    "icecreambar": "3.2.0",
+    "joi": "10.0.6",
+    "knex": "0.12.6",
+    "opbeat": "4.1.0",
+    "pg": "6.1.2",
+    "pm2": "2.2.2",
+    "rejoice": "3.3.1",
+    "snyk": "^1.21.2"
+  },
+  "devDependencies": {
+    "code": "^4.0.0",
+    "dotenv": "^2.0.0",
+    "eslint": "^3.11.1",
+    "lab": "^11.2.1"
+  },
+  "snyk": true
+}

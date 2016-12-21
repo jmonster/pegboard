@@ -1,0 +1,33 @@
+{
+  "parserOptions": {
+    "ecmaFeatures": {
+      "impliedStrict": true
+    }
+  },
+
+  "env": {
+    "es6": true,
+    "node": true
+  },
+
+  "globals": {
+
+  },
+
+  "rules": {
+    "quotes": [2, "single", "avoid-escape"],
+    "no-underscore-dangle": 2,
+    "no-unused-vars": 2,
+    "no-duplicate-case": "error",
+    "no-func-assign": "error",
+    "no-unreachable": "error",
+    "use-isnan": "error",
+    "valid-typeof": "error",
+    "block-scoped-var": "error",
+    "consistent-return": "error",
+    "curly": "error",
+    "dot-location": ["error", "object"],
+    "eqeqeq": "warn",
+    "global-require": "error"
+  }
+}
