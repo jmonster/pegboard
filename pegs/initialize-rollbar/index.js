@@ -5,7 +5,7 @@ exports.register = (server, options, next) => {
   server.ext('onPreStart', (server, next) => {
     if (ROLLBAR_SERVER_ITEM_ACCESS_TOKEN) {
       server.register({
-        'register': 'icecreambar',
+        'register': require('icecreambar'),
         'options': {
           'accessToken': ROLLBAR_SERVER_ITEM_ACCESS_TOKEN,
           'scrubHeaders': ['authorization', 'referer'],
