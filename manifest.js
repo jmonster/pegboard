@@ -1,5 +1,5 @@
 const PRODUCTION_ENV = (process.env.NODE_ENV === 'production');
-if (!PRODUCTION_ENV) { require('dotenv').load(); }                             //eslint-disable-line global-require
+if (!PRODUCTION_ENV) { require('dotenv').config({silent: true}) }              //eslint-disable-line global-require
 
 const PORT = process.env.PORT || 3000;
 
