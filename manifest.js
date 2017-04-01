@@ -1,4 +1,8 @@
+const fs = require('fs')
+const path = require('path')
+
 const PRODUCTION_ENV = (process.env.NODE_ENV === 'production');
+
 
 // load .env file
 if (!PRODUCTION_ENV) { require('dotenv').config({silent: true}) } // eslint-disable-line global-require
@@ -19,22 +23,13 @@ const manifest = {
   }]
 };
 
-// enumerate plugins
-const pegs = [
-  'configure-http-agents',
-  'initialize-rollbar',
-  'ping',
-  'report-uncaught-exceptions',
-  'announce-server-ready'
-];
-
-
 // register pegs with the server
+const pegs = fs.readdirSync(path.resolve('./pegs'));
 registrations.push(...pegs.map((plugin) => {
   return { 'plugin': `./${plugin}` };
 }));
 
-
-if (PRODUCTION_ENV) { registrations.push({ 'plugin': 'hapi-require-https' }); }// require http in production
+// require http in production
+if (PRODUCTION_ENV) { registrations.push({ 'plugin': 'hapi-require-https' }); }
 
 module.exports = manifest;
