@@ -10,7 +10,7 @@
     "DATABASE_URL": {
       "description": "datastore for analytic events",
       "required": true
-    }
+    },
     "ROLLBAR_SERVER_ITEM_ACCESS_TOKEN": {
       "description": "enables/directs application exceptions to Rollbar",
       "required": false
