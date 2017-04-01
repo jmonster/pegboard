@@ -7,8 +7,7 @@
     "node": "6.9.2"
   },
   "scripts": {
-    "test": "snyk test && ./node_modules/.bin/lab --lint --coverage",
-    "test-without-snyk": "./node_modules/.bin/lab --lint --coverage",
+    "test": "./node_modules/.bin/lab --lint --coverage",
     "dev": "./bin/dev",
     "start": "./bin/start",
     "reset": "rm -rf ./node_modules && yarn install"
@@ -30,8 +29,7 @@
     "knex": "0.12.6",
     "pg": "6.1.2",
     "pm2": "2.2.2",
-    "rejoice": "3.3.1",
-    "snyk": "^1.21.2"
+    "rejoice": "3.3.1"
   },
   "devDependencies": {
     "code": "^4.0.0",
