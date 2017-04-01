@@ -18,7 +18,6 @@ const manifest = {
 const pegs = [
   'configure-http-agents',
   'initialize-rollbar',
-  'initialize-opbeat',
   'ping',
   'report-uncaught-exceptions',
   'announce-server-ready'

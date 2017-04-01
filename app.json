@@ -10,19 +10,7 @@
     "DATABASE_URL": {
       "description": "datastore for analytic events",
       "required": true
-    },
-    "OPBEAT_SECRET_TOKEN": {
-      "description": "enables/directs application metrics to OpBeat",
-      "required": false
-    },
-    "OPBEAT_ORGANIZATION_ID": {
-      "description": "enables/directs application metrics to OpBeat",
-      "required": false
-    },
-    "OPBEAT_APP_ID": {
-      "description": "enables/directs application metrics to OpBeat",
-      "required": false
-    },
+    }
     "ROLLBAR_SERVER_ITEM_ACCESS_TOKEN": {
       "description": "enables/directs application exceptions to Rollbar",
       "required": false
