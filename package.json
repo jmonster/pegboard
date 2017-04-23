@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "engines": {
-    "node": "6.10.1"
+    "node": "6.10.2",
+    "yarn": "0.23.2"
   },
   "scripts": {
     "test": "./node_modules/.bin/lab --lint --coverage",
@@ -21,20 +22,20 @@
   "dependencies": {
     "boom": "^4.3.1",
     "chalk": "^1.1.3",
-    "debug": "^2.6.3",
+    "debug": "^2.6.4",
     "hapi": "^16.1.1",
     "hapi-require-https": "^2.1.0",
     "icecreambar": "^4.4.0",
-    "joi": "^10.3.4",
+    "joi": "^10.4.1",
     "knex": "^0.12.9",
     "pg": "^6.1.5",
-    "pm2": "^2.4.3",
+    "pm2": "^2.4.5",
     "rejoice": "^4.0.0"
   },
   "devDependencies": {
     "code": "^4.0.0",
     "dotenv": "^4.0.0",
     "eslint": "^3.19.0",
-    "lab": "^13.0.1"
+    "lab": "^13.0.2"
   }
 }
