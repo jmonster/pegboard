@@ -1,0 +1,399 @@
+---
+import { execFileSync } from 'node:child_process';
+import { parse } from 'yaml';
+import raw from '../../status.yaml?raw';
+import '../map.css';
+
+type Plat = { id: string; name: string; fam: string; fid: string; devs: { id: string; name: string }[] };
+type Cell = { s: string; w: string; note: string };
+
+const STATES = ['done', 'built', 'wip', 'plan', 'broken', 'na'];
+const LABEL: Record<string, string> = { done: 'verified', built: 'built', wip: 'in progress', plan: 'planned', broken: 'broken', na: 'n/a', missing: 'missing' };
+const STORE: Record<string, string> = { live: 'done', beta: 'built', review: 'wip' };
+const STORE_LABEL: Record<string, string> = { live: 'Live', done: 'Live', beta: 'Beta', built: 'Beta', review: 'In review', wip: 'Preparing', plan: 'Planned', broken: 'Blocked', na: 'No store' };
+const META = new Set(['unit', 'better']);
+const CELL = 56, LABEL_W = 200, GAP = 40;
+
+const { title = 'Status', columns, ...boards } = parse(raw) as Record<string, any>;
+const plats: Plat[] = Object.entries<any>(columns).flatMap(([fam, ps]) =>
+  Object.entries<any>(ps).map(([id, { name, ...devs }]) => ({
+    id, name, fam, fid: fam.toLowerCase(),
+    devs: Object.entries<string>(devs).map(([id, name]) => ({ id, name })),
+  })));
+
+// Each cell key (family, platform or device) covers platforms and has a display label.
+const keys = new Map<string, { plats: Plat[]; label: string }>();
+for (const p of plats) {
+  keys.set(p.fid, { plats: [...(keys.get(p.fid)?.plats ?? []), p], label: p.fam });
+  keys.set(p.id, { plats: [p], label: p.name });
+  for (const d of p.devs) keys.set(d.id, { plats: [p], label: `${p.name} ${d.name}` });
+}
+
+const split = (v: unknown) => String(v ?? '').trim().split(/\s+/);
+const rank = (c?: Cell) => (c ? STATES.indexOf(c.s) : 99);
+const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+function cell(v: unknown, where: string): Cell | undefined {
+  if (v == null) return;
+  const [w, ...rest] = split(v);
+  const s = STORE[w] ?? w;
+  if (!STATES.includes(s)) throw new Error(`${where}: unknown state "${w}"`);
+  return { s, w, note: rest.join(' ') };
+}
+
+const COUNTED = ['done', 'built', 'wip', 'plan', 'broken', 'missing'];
+const tally = new Map(plats.map((p) => [p.id, { n: Object.fromEntries([...STATES, 'missing'].map((s) => [s, 0])), store: undefined as Cell | undefined }]));
+
+const views = Object.entries<any>(boards).map(([title, groups]) => {
+  const tiles = Object.entries<any>(groups).map(([group, rows]) => {
+    const list = Object.entries<any>(rows).map(([name, cells = {}]) => {
+      for (const k of Object.keys(cells)) if (!META.has(k) && !keys.has(k)) throw new Error(`${title} › ${group} › ${name}: unknown key "${k}"`);
+      return { name, cells: cells as Record<string, unknown> };
+    });
+    return { group, id: slug(`${title}-${group}`), list };
+  });
+
+  if (tiles.some((t) => t.list.some((r) => 'unit' in r.cells))) {
+    const metrics = tiles.map((t) => ({
+      ...t,
+      rows: t.list.map(({ name, cells: { unit, better, ...vals } }) => {
+        const low = better === 'low';
+        const bars = Object.entries(vals).map(([k, v]) => {
+          const [n, ...note] = split(v);
+          if (!Number.isFinite(Number(n))) throw new Error(`${title} › ${t.group} › ${name} › ${k}: "${n}" is not a number`);
+          return { label: keys.get(k)!.label, num: Number(n), note: note.join(' ') };
+        }).sort((a, b) => (low ? a.num - b.num : b.num - a.num));
+        const max = Math.max(0, ...bars.map((b) => b.num));
+        return { name, unit, low, bars: bars.map((b) => ({ ...b, w: max ? b.num / max : 0 })) };
+      }),
+    }));
+    const n = Math.min(3, tiles.length);
+    return { title, id: slug(title), metric: true, n, width: n * 420 + (n - 1) * GAP, tiles: metrics };
+  }
+
+  const grids = tiles.map((t) => {
+    const used = new Set(t.list.flatMap((r) => Object.keys(r.cells).flatMap((k) => keys.get(k)!.plats.map((p) => p.id))));
+    const cols = plats.filter((p) => used.has(p.id));
+    const fams = cols.reduce<{ name: string; n: number }[]>((a, p) => (a.at(-1)?.name === p.fam ? a.at(-1)!.n++ : a.push({ name: p.fam, n: 1 }), a), []);
+    const rows = t.list.map((r) => {
+      const isStore = Object.values(r.cells).some((v) => split(v)[0] in STORE);
+      return {
+        name: r.name,
+        cells: cols.map((p) => {
+          const where = `${title} › ${t.group} › ${r.name} › ${p.id}`;
+          const base = r.cells[p.id] ?? r.cells[p.fid];
+          const devs = p.devs.some((d) => d.id in r.cells) ? p.devs.map((d) => ({ name: d.name, c: cell(r.cells[d.id] ?? base, where) })) : undefined;
+          const one = devs ? undefined : cell(base, where);
+          const top = devs ? devs.reduce<Cell | undefined>((a, x) => (rank(x.c) < rank(a) ? x.c : a), undefined) : one;
+          const tl = tally.get(p.id)!;
+          // A blank cell in a tile that shows this platform counts as missing; only na is excluded.
+          if (isStore) { if (top && rank(top) < rank(tl.store)) tl.store = top; }
+          else tl.n[top?.s ?? 'missing']++;
+          const tip = devs
+            ? `${p.name} · ${r.name}\n${devs.map((x) => `${x.name}: ${x.c ? `${x.c.w} ${x.c.note}` : 'untracked'}`).join('\n')}`
+            : `${p.name} · ${r.name}: ${one ? `${one.w}${one.note ? ` — ${one.note}` : ''}` : 'untracked'}`;
+          return { id: p.id, one, devs, tip };
+        }),
+      };
+    });
+    return { ...t, cols, fams, rows, w: LABEL_W + cols.length * CELL + 38 };
+  });
+  const height = grids.reduce((h, t) => h + t.rows.length + 4, 0);
+  const n = Math.min(grids.length, Math.ceil(height / 26));
+  const cw = Math.max(...grids.map((t) => t.w));
+  return { title, id: slug(title), metric: false, n, width: n * cw + (n - 1) * GAP, tiles: grids };
+});
+
+const fams = [...new Set(plats.map((p) => p.fam))].map((name) => ({
+  name,
+  cards: plats.filter((p) => p.fam === name).map((p) => {
+    const { n, store } = tally.get(p.id)!;
+    const tracked = COUNTED.reduce((a, s) => a + n[s], 0);
+    let at = 0;
+    const ring = tracked
+      ? `conic-gradient(${COUNTED.map((s) => `var(--${s}) ${(at / tracked) * 100}% ${((at += n[s]) / tracked) * 100}%`).join(', ')})`
+      : 'var(--na)';
+    const counts = COUNTED.filter((s) => n[s]).map((s) => `${n[s]} ${LABEL[s]}`).join(' · ');
+    const share = (k: number) => (tracked ? Math.round((k / tracked) * 100) : 0);
+    return { p, store, works: share(n.done + n.built), verified: share(n.done), ring, counts: counts || 'nothing tracked' };
+  }),
+}));
+
+let updated = '';
+try {
+  updated = execFileSync('git', ['log', '-1', '--format=%cs', '--', 'status.yaml'], { encoding: 'utf8' }).trim();
+} catch {}
+const hover = plats.map((p) => `table:has([data-c="${p.id}"]:hover) [data-c="${p.id}"]`).join(',') + '{background:var(--hover)}';
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='6' fill='%23a6ff3d'/></svg>" />
+    <style is:inline set:html={hover}></style>
+  </head>
+  <body>
+    <header class="hud">
+      <div class="brand">
+        <h1>{title}</h1>
+        {updated && <time datetime={updated}>{updated}</time>}
+      </div>
+      <ul class="legend">
+        {STATES.map((s) => <li><i class={`peg s-${s}`}></i>{LABEL[s]}</li>)}
+        <li><i class="peg"></i>missing</li>
+      </ul>
+      <nav>
+        <button data-zoom="out" aria-label="Zoom out">−</button>
+        <button data-zoom="fit">Overview</button>
+        <button data-zoom="in" aria-label="Zoom in">+</button>
+      </nav>
+    </header>
+    <p class="hint">Pinch or ⌘-scroll to zoom · drag to pan · click to focus · Esc for overview</p>
+
+    <main class="viewport" data-z="0">
+      <div class="map">
+        <section class="score" data-focus id="platforms">
+          {fams.map((f) => (
+            <div class="fam">
+              <h3 class="zt">{f.name}</h3>
+              <div class="cards">
+                {f.cards.map((c) => (
+                  <article class="card" data-focus id={`platform-${c.p.id}`}>
+                    <div class="ring" style={`--ring:${c.ring};--g:${c.verified}%`}><b>{c.works}<small>%</small><em>works</em></b></div>
+                    <h4>{c.p.name}</h4>
+                    {c.store && <p class="chip"><i class={`peg s-${c.store.s}`}></i>{STORE_LABEL[c.store.w]}</p>}
+                    <p class="verified"><i class="peg s-done"></i>{c.verified}% verified</p>
+                    <p class="counts">{c.counts}</p>
+                    {c.p.devs.length > 0 && <p class="devlist">{c.p.devs.map((d) => d.name).join(' · ')}</p>}
+                    {c.store?.note && <p class="note">{c.store.note}</p>}
+                  </article>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+        <hr class="break" />
+
+        {views.map((v) => (
+          <section class="board" data-focus id={v.id} style={`--n:${v.n};width:${v.width}px`}>
+            <h2 class="zt">{v.title}</h2>
+            <div class="tiles">
+              {v.metric
+                ? v.tiles.map((t: any) => (
+                    <figure class="tile metric" data-focus id={t.id}>
+                      <figcaption><span class="zt">{t.group}</span></figcaption>
+                      {t.rows.map((m: any) => (
+                        <div class="m">
+                          <h4>{m.name}<span>{m.unit}{m.low && ' · lower is better'}</span></h4>
+                          {m.bars.length ? (
+                            m.bars.map((b: any, i: number) => (
+                              <div class:list={['bar', { best: i === 0 && m.bars.length > 1 }]} style={`--w:${b.w}`} title={b.note}>
+                                <span>{b.label}</span><b>{b.num}</b>{b.note && <small>{b.note}</small>}
+                              </div>
+                            ))
+                          ) : (
+                            <p class="none">not measured</p>
+                          )}
+                        </div>
+                      ))}
+                    </figure>
+                  ))
+                : v.tiles.map((t: any) => (
+                    <figure class="tile" data-focus id={t.id}>
+                      <figcaption><span class="zt">{t.group}</span></figcaption>
+                      <table>
+                        <thead>
+                          <tr class="fams"><th></th>{t.fams.map((f: any) => <th colspan={f.n}>{f.name}</th>)}</tr>
+                          <tr><th></th>{t.cols.map((p: Plat) => <th data-c={p.id}>{p.name}</th>)}</tr>
+                        </thead>
+                        <tbody>
+                          {t.rows.map((r: any) => (
+                            <tr>
+                              <th>{r.name}</th>
+                              {r.cells.map((c: any) => (
+                                <td data-c={c.id} title={c.tip}>
+                                  {c.devs ? (
+                                    <>
+                                      <span class="devs">{c.devs.map((x: any) => <i class={`peg${x.c ? ` s-${x.c.s}` : ''}`}></i>)}</span>
+                                      <small class="dl">{c.devs.map((x: any) => <span>{x.name} {x.c?.w ?? '–'}</span>)}</small>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <i class={`peg${c.one ? ` s-${c.one.s}` : ''}`}></i>
+                                      {c.one?.note && <small>{c.one.note}</small>}
+                                    </>
+                                  )}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </figure>
+                  ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </main>
+
+    <script>
+      const vp = document.querySelector<HTMLElement>('.viewport')!;
+      const map = vp.firstElementChild as HTMLElement;
+      const hud = document.querySelector<HTMLElement>('.hud')!;
+      const titles = [...map.querySelectorAll<HTMLElement>('.zt')];
+      const EASE = 'cubic-bezier(.2,.8,.2,1)';
+      let s = 1, x = 0, y = 0, idle = 0, moved = false;
+      let focus: HTMLElement | null = null;
+
+      function apply(ms = 0) {
+        const t = ms ? `transform ${ms}ms ${EASE}` : '';
+        map.style.transition = t;
+        map.style.transform = `translate(${x}px,${y}px) scale(${s})`;
+        vp.style.transition = ms ? `background-size ${ms}ms ${EASE}, background-position ${ms}ms ${EASE}` : '';
+        vp.style.backgroundSize = `${22 * s}px ${22 * s}px`;
+        vp.style.backgroundPosition = `${x}px ${y}px`;
+        // Composite while moving, then drop the layer so text re-rasterizes sharply.
+        map.style.willChange = 'transform';
+        clearTimeout(idle);
+        idle = window.setTimeout(() => (map.style.willChange = ''), ms + 150);
+        vp.dataset.z = s < 0.6 ? '0' : s < 1.6 ? '1' : '2';
+        for (const el of titles) {
+          el.style.transition = t;
+          el.style.setProperty('--z', String(s));
+        }
+      }
+
+      function zoomAt(f: number, cx: number, cy: number, ms = 0) {
+        const n = Math.min(12, Math.max(0.05, s * f));
+        x = cx - ((cx - x) * n) / s;
+        y = cy - ((cy - y) * n) / s;
+        s = n;
+        apply(ms);
+      }
+
+      const area = () => {
+        const top = hud.offsetHeight + 12, pad = innerWidth < 600 ? 16 : 40;
+        return { top, pad, vw: innerWidth - 2 * pad, vh: innerHeight - top - pad };
+      };
+      const extent = () => Math.max(...[...map.querySelectorAll<HTMLElement>(':scope > section')].map((c) => c.offsetLeft + c.offsetWidth));
+
+      // Choose the canvas width whose wrapped layout gives the largest overview on this screen.
+      function pack() {
+        const { vw, vh } = area();
+        const boards = [...map.querySelectorAll<HTMLElement>('.board')];
+        const min = Math.max(...boards.map((b) => b.offsetWidth)) + 160;
+        let best = min, most = 0;
+        for (let w = min; w <= min * 2.5; w += 150) {
+          map.style.width = `${w}px`;
+          const fitScale = Math.min(vw / (extent() + 80), vh / map.offsetHeight);
+          if (fitScale > most) [most, best] = [fitScale, w];
+        }
+        map.style.width = `${best}px`;
+      }
+
+      function fit(el: HTMLElement | null, ms = 600) {
+        let l = 0, t = 0;
+        for (let e = el; e && e !== map; e = e.offsetParent as HTMLElement | null) {
+          l += e.offsetLeft;
+          t += e.offsetTop;
+        }
+        const w = el ? el.offsetWidth : extent() + 80, h = (el ?? map).offsetHeight;
+        const { top, pad, vw, vh } = area();
+        s = Math.min(4, vw / w, vh / h);
+        x = pad + (vw - w * s) / 2 - l * s;
+        y = top + (vh - h * s) / 2 - t * s;
+        apply(ms);
+      }
+
+      function go(el: HTMLElement | null) {
+        focus = el;
+        fit(el);
+        history.replaceState(null, '', el ? `#${el.id}` : location.pathname);
+      }
+
+      const pts = new Map<number, PointerEvent>();
+      vp.addEventListener('pointerdown', (e) => {
+        pts.set(e.pointerId, e);
+        moved = false;
+      });
+      vp.addEventListener('pointermove', (e) => {
+        const p = pts.get(e.pointerId);
+        if (!p) return;
+        if (pts.size > 1) {
+          const [a, b] = [...pts.values()];
+          const d0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+          pts.set(e.pointerId, e);
+          const [c, d] = [...pts.values()];
+          moved = true;
+          if (d0) zoomAt(Math.hypot(c.clientX - d.clientX, c.clientY - d.clientY) / d0, (c.clientX + d.clientX) / 2, (c.clientY + d.clientY) / 2);
+          return;
+        }
+        const dx = e.clientX - p.clientX, dy = e.clientY - p.clientY;
+        if (!moved && Math.hypot(dx, dy) < 4) return;
+        if (!moved) {
+          moved = true;
+          vp.setPointerCapture(e.pointerId);
+          vp.classList.add('drag');
+        }
+        pts.set(e.pointerId, e);
+        x += dx;
+        y += dy;
+        apply();
+      });
+      const end = (e: PointerEvent) => {
+        pts.delete(e.pointerId);
+        if (!pts.size) vp.classList.remove('drag');
+      };
+      vp.addEventListener('pointerup', end);
+      vp.addEventListener('pointercancel', end);
+      vp.addEventListener('click', (e) => {
+        const el = (e.target as HTMLElement).closest<HTMLElement>('[data-focus]');
+        if (!moved && el !== focus) go(el);
+      });
+      vp.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        if (e.ctrlKey || e.metaKey || e.deltaMode) zoomAt(Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.01)), e.clientX, e.clientY);
+        else {
+          x -= e.deltaX;
+          y -= e.deltaY;
+          apply();
+        }
+      }, { passive: false });
+      // Safari reports trackpad pinch as gesture events instead of ctrl+wheel.
+      let g0 = 1;
+      vp.addEventListener('gesturestart', (e) => {
+        e.preventDefault();
+        g0 = s;
+      });
+      vp.addEventListener('gesturechange', (e: any) => {
+        e.preventDefault();
+        zoomAt((g0 * e.scale) / s, e.clientX, e.clientY);
+      });
+
+      const step = (dir: 'in' | 'out') => zoomAt(dir === 'in' ? 1.6 : 1 / 1.6, innerWidth / 2, innerHeight / 2, 250);
+      hud.querySelector('nav')!.addEventListener('click', (e) => {
+        const z = (e.target as HTMLElement).closest('button')?.dataset.zoom;
+        if (z === 'fit') go(null);
+        else if (z === 'in' || z === 'out') step(z);
+      });
+      addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || e.key === '0') go(null);
+        else if (e.key === '+' || e.key === '=') step('in');
+        else if (e.key === '-') step('out');
+      });
+      let resizing = 0;
+      addEventListener('resize', () => {
+        clearTimeout(resizing);
+        resizing = window.setTimeout(() => (pack(), fit(focus, 0)), 150);
+      });
+
+      const linked = () => (location.hash ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null);
+      addEventListener('hashchange', () => go(linked()));
+      focus = linked();
+      pack();
+      fit(focus, 0);
+    </script>
+  </body>
+</html>

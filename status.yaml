@@ -1,0 +1,55 @@
+# Status board data. Edit one line per change; `npm run build` rejects unknown keys and states.
+# Cell: `state note`. States: done (verified on the target) · built (works, unverified) · wip · plan · broken · na. Store rows: live · review · beta.
+# A blank cell counts as missing; use na where a feature cannot apply. Keys come from `columns`: family, platform or device; the most specific wins.
+# Metric rows have `unit` (optional `better: low`) and cells `number note`. Quote a cell that contains a comma or `: `.
+
+title: Pixel Brite
+
+columns:
+  Apple:
+    tvos: {name: Apple TV, atvhd: HD, atv4k: 4K}
+    ios: {name: iPhone}
+    macos: {name: Mac}
+  Google:
+    googletv: {name: Google TV}
+    android: {name: Android phone}
+  Web:
+    web: {name: Browser, chrome: Chrome, safari: Safari, firefox: Firefox}
+  TVs:
+    tizen: {name: Samsung TV}
+    roku: {name: Roku}
+
+Features:
+  Distribution:
+    Store: {apple: live, google: beta, tizen: review, roku: review, web: na}
+  Watch:
+    Home screen: {apple: done, google: done, web: done, tizen: built, roku: done}
+    Continue Watching: {apple: done, google: done, web: done, tizen: built, roku: done}
+    Up Next: {apple: done, google: built, web: done, tizen: built, roku: built}
+    Search: {apple: done, google: done, web: done, tizen: wip, roku: plan}
+    People: {apple: done, google: built, web: done}
+    Pins: {apple: done, google: built, web: built, roku: plan}
+  Music:
+    Music library: {apple: done, google: done, web: done, tizen: plan, roku: plan}
+    Album artists: {apple: done, google: built, web: done}
+    Auto queue: {apple: built, google: built, web: built}
+    Pixel Satellite speaker: {apple: done, android: wip control from the phone, tizen: plan, roku: plan}
+
+Formats:
+  Video:
+    H.264: {apple: done, google: done, web: done, tizen: done, roku: done}
+    HEVC: {apple: done, google: done, safari: done, chrome: built, firefox: na, tizen: built, roku: built}
+    AV1: {tvos: na no hardware decoder, ios: built newer models, macos: built, google: done, chrome: done, firefox: done, safari: built, roku: built}
+    HDR10: {tvos: done, atvhd: na no HDR output, ios: done, macos: done, googletv: done, safari: done, chrome: built, tizen: built}
+    Dolby Vision: {tvos: done, atvhd: na, ios: built, macos: built, googletv: built, safari: built, roku: built}
+  Audio:
+    AAC: {apple: done, google: done, web: done, tizen: done, roku: done}
+    Dolby Atmos: {apple: done, googletv: built, tizen: plan}
+    FLAC: {apple: done, google: done, web: done, roku: plan}
+
+Performance:
+  Speed:
+    Launch to home: {unit: ms, better: low, atv4k: 820, ios: 610, macos: 450, googletv: 1380, roku: 2000}
+    Playback start: {unit: ms, better: low, atv4k: 620, ios: 540, macos: 380, googletv: 910, roku: 1900}
+  Memory:
+    Peak memory: {unit: MB, better: low, atv4k: 147, ios: 168, googletv: 212, roku: 96}
