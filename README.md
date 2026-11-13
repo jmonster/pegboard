@@ -67,4 +67,4 @@ The included workflow deploys to GitHub Pages on every push to `main`. In the re
 
 ## License
 
-[AGPL-3.0](LICENSE).
+[PolyForm Shield 1.0.0](LICENSE.md). You may use it, change it, fork it and keep your board private, for any purpose except providing a product that competes with it.

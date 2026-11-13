@@ -1,7 +1,7 @@
 {
   "name": "pegboard",
   "private": true,
-  "license": "AGPL-3.0-only",
+  "license": "PolyForm-Shield-1.0.0",
   "type": "module",
   "scripts": {
     "dev": "astro dev",
